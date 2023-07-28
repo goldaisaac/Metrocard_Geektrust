@@ -1,0 +1,168 @@
+package com.example.geektrust.service.impl;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.example.geektrust.constants.AppConstants;
+import com.example.geektrust.constants.Category;
+import com.example.geektrust.constants.Destination;
+import com.example.geektrust.dto.CheckInDto;
+import com.example.geektrust.dto.MetroCardDetails;
+import com.example.geektrust.response.PassengerSummary;
+import com.example.geektrust.service.BalanceService;
+import com.example.geektrust.service.CheckInService;
+import com.example.geektrust.service.PaymentService;
+import com.example.geektrust.service.SummaryService;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Service
+public class CheckInServiceImpl implements CheckInService {
+
+	private static final int DELIMITER_CHECKIN_4 = 4;
+
+	@Autowired
+	PaymentService paymentService;
+
+	@Autowired
+	BalanceService balanceService;
+
+	@Autowired
+	SummaryService summaryService;
+
+	Map<String, Map<String, String>> prevTravelType = new HashMap<>();
+
+	@Override
+	/**
+	 * Performs the check-in operation for a MetroCard based on the provided data.
+	 * Updates the check-in details for the MetroCard and invokes the necessary
+	 * processing.
+	 *
+	 * @param metroCardDetails   The list of MetroCard details.
+	 * @param passengerSummaries The list of passenger summaries.
+	 * @param data               The check-in data.
+	 * @return The updated list of MetroCard details.
+	 */
+	public List<MetroCardDetails> checkIn(List<MetroCardDetails> metroCardDetails,
+			List<PassengerSummary> passengerSummaries, String data) {
+
+		log.info("Performing check-in with data: {}", data);
+
+		String[] words = data.split(" ");
+		if (words.length >= DELIMITER_CHECKIN_4) {
+			String cardId = words[1];
+			String category = words[2];
+			String destination = words[3];
+
+			Optional<MetroCardDetails> optionalCardDetails = metroCardDetails.stream()
+					.filter(cardDetails -> cardDetails.getMetroCardId().equals(cardId)).findFirst();
+
+			optionalCardDetails.ifPresent(cardDetails -> {
+				CheckInDto checkInDto = new CheckInDto(Category.valueOf(category.toUpperCase()),
+						Destination.valueOf(destination.toUpperCase()));
+				List<CheckInDto> checkInDetails = Optional.ofNullable(cardDetails.getCheckInDetails()).orElseGet(() -> {
+					List<CheckInDto> newCheckInDetails = new ArrayList<>();
+					cardDetails.setCheckInDetails(newCheckInDetails);
+					return newCheckInDetails;
+				});
+
+				checkInDetails.add(checkInDto);
+				log.info("Added check-in details to MetroCardDetails with cardId: {}, category: {}, destination: {}",
+						cardId, category, destination);
+
+				processInput(metroCardDetails, cardDetails, checkInDto, passengerSummaries);
+				log.info("Processed input for MetroCardDetails with cardId: {}", cardId);
+
+			});
+		} else {
+			log.warn("Invalid data format: {}", data);
+		}
+
+		return metroCardDetails;
+	}
+
+	/**
+	 * Processes the input data for a MetroCard and performs the necessary balance
+	 * checks based on the check-in details. Updates the previous travel type for
+	 * the MetroCard and invokes the balance check service accordingly.
+	 *
+	 * @param metroCardDetails   The list of MetroCard details.
+	 * @param cardDetails        The MetroCard details for which the input is being
+	 *                           processed.
+	 * @param currentCheckInData The current check-in data.
+	 * @param passengerSummaries The list of passenger summaries.
+	 */
+	public void processInput(List<MetroCardDetails> metroCardDetails, MetroCardDetails cardDetails,
+			CheckInDto currentCheckInData, List<PassengerSummary> passengerSummaries) {
+		String metroCardId = cardDetails.getMetroCardId();
+		String currentDestination = currentCheckInData.getDestination().toString();
+		log.info("Processing input for MetroCardDetails with cardId: {}", metroCardId);
+
+		// Check if the card has only one check-in and is not empty
+		if (cardDetails.getCheckInDetails().size() == 1 && !cardDetails.getCheckInDetails().isEmpty()) {
+			// Process one-way trip
+			processOneWayTrip(metroCardDetails, metroCardId, currentDestination, cardDetails, currentCheckInData, passengerSummaries);
+		} else {
+			// Process return trip or repeated one-way trip
+			processReturnTrip(metroCardDetails, metroCardId, currentDestination, cardDetails, currentCheckInData, passengerSummaries);
+		}
+	}
+
+	/**
+	 * Processes the balance check for a one-way trip.
+	 *
+	 * @param metroCardId        The ID of the MetroCard being processed.
+	 * @param currentDestination The current destination of the passenger.
+	 * @param cardDetails        The MetroCardDetails for the trip.
+	 * @param currentCheckInData The check-in details for the current trip.
+	 * @param passengerSummaries The list of passenger summaries.
+	 */
+	private void processOneWayTrip(List<MetroCardDetails> metroCardDetails, String metroCardId, String currentDestination, MetroCardDetails cardDetails,
+			CheckInDto currentCheckInData, List<PassengerSummary> passengerSummaries) {
+		log.info("Performing balance check for one-way trip - cardId: {}", metroCardId);
+		prevTravelType.put(metroCardId, Collections.singletonMap(AppConstants.ONE_WAY, currentDestination));
+
+		// Perform the balance check for the one-way trip
+		balanceService.checkBalance(metroCardDetails, cardDetails, false, currentCheckInData, passengerSummaries);
+	}
+
+	/**
+	 * Processes the balance check for a return trip or a repeated one-way trip.
+	 *
+	 * @param metroCardId        The ID of the MetroCard being processed.
+	 * @param currentDestination The current destination of the passenger.
+	 * @param cardDetails        The MetroCardDetails for the trip.
+	 * @param currentCheckInData The check-in details for the current trip.
+	 * @param passengerSummaries The list of passenger summaries.
+	 */
+	private void processReturnTrip(List<MetroCardDetails> metroCardDetails, String metroCardId, String currentDestination, MetroCardDetails cardDetails,
+			CheckInDto currentCheckInData, List<PassengerSummary> passengerSummaries) {
+		Map<String, String> map = prevTravelType.get(metroCardId);
+		String previousDestination = map.getOrDefault(AppConstants.ONE_WAY, "");
+		log.info("Previous destination for MetroCardDetails with cardId: {} is: {}", metroCardId, previousDestination);
+
+		// Check if the current destination is different from the previous destination
+		// and there is no return travel recorded for the card
+		if (!previousDestination.equals(currentDestination)
+				&& !prevTravelType.get(metroCardId).containsKey(AppConstants.RETURN)) {
+			log.info("Performing balance check for return trip - cardId: {}", metroCardId);
+			prevTravelType.put(metroCardId, Collections.singletonMap(AppConstants.RETURN, currentDestination));
+
+			// Perform the balance check for the return trip
+			balanceService.checkBalance(metroCardDetails, cardDetails, true, currentCheckInData, passengerSummaries);
+		} else {
+			// If the current destination is the same as the previous destination or a return trip was already recorded,
+			// process the balance check as a one-way trip
+			processOneWayTrip(metroCardDetails, metroCardId, currentDestination, cardDetails, currentCheckInData, passengerSummaries);
+		}
+	}
+
+}

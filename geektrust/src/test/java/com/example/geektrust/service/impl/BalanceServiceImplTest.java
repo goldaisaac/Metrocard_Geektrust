@@ -1,4 +1,4 @@
-package metro.app.service.impl;
+package com.example.geektrust.service.impl;
 
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -16,13 +16,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import metro.app.constants.Category;
-import metro.app.constants.Destination;
-import metro.app.dto.BalanceDto;
-import metro.app.dto.CheckInDto;
-import metro.app.dto.MetroCardDetails;
-import metro.app.response.PassengerSummary;
-import metro.app.service.PaymentService;
+import com.example.geektrust.constants.Category;
+import com.example.geektrust.constants.Destination;
+import com.example.geektrust.dto.BalanceDto;
+import com.example.geektrust.dto.CheckInDto;
+import com.example.geektrust.dto.MetroCardDetails;
+import com.example.geektrust.response.PassengerSummary;
+import com.example.geektrust.service.PaymentService;
 
 class BalanceServiceImplTest {
 
@@ -37,64 +37,55 @@ class BalanceServiceImplTest {
 		MockitoAnnotations.openMocks(this);
 	}
 
+	// Test case to check the processBalance method with valid data
 	@Test
 	void testProcessBalance_ValidData() {
 		List<MetroCardDetails> metroCardDetails = new ArrayList<>();
 		String data = "BALANCE 1234567890 100";
-
 		List<MetroCardDetails> result = balanceService.processBalance(metroCardDetails, data);
-
-		// Assert that the metroCardDetails list contains one element
+		
+		// Assert that the list contains one element after processing
 		Assertions.assertEquals(1, result.size());
-
-		// Assert that the card details are correctly set
+		
+		// Assert the details of the processed MetroCardDetails object
 		MetroCardDetails cardDetails = result.get(0);
 		Assertions.assertEquals("1234567890", cardDetails.getMetroCardId());
 		Assertions.assertEquals(100L, cardDetails.getBalance().getBalance());
 	}
 
+	// Test case to check the processBalance method with invalid data
 	@Test
 	void testProcessBalance_InvalidData() {
 		List<MetroCardDetails> metroCardDetails = new ArrayList<>();
 		String data = "INVALID_DATA_FORMAT";
-
 		List<MetroCardDetails> result = balanceService.processBalance(metroCardDetails, data);
-
-		// Assert that the metroCardDetails list is still empty
+		
+		// Assert that the list remains empty after processing invalid data
 		Assertions.assertEquals(0, result.size());
 	}
 
+	// Test case to check the checkBalance method
 	@Test
 	void testCheckBalance() {
 		List<MetroCardDetails> metroCardDetails = new ArrayList<>();
 		List<PassengerSummary> passengerSummaries = new ArrayList<>();
 		MetroCardDetails cardDetails = new MetroCardDetails();
 		CheckInDto checkInDto = new CheckInDto(Category.ADULT, Destination.AIRPORT);
-
 		cardDetails.setMetroCardId("1234567890");
 		cardDetails.setBalance(new BalanceDto(100L));
-
 		metroCardDetails.add(cardDetails);
-
-		// Mock the behavior of the paymentService.calculateAmountCollected() method
+		
+		// Mock the paymentService methods for calculating amounts
 		when(paymentService.calculateAmountCollected(anyLong(), anyLong(), anyBoolean())).thenReturn(50L);
-
-		// Mock the behavior of the paymentService.calculateReturnCollected() method
 		when(paymentService.calculateReturnCollected(anyLong(), anyBoolean())).thenReturn(10L);
-
-		// Call the method to be tested
-		List<MetroCardDetails> result = balanceService.checkBalance(metroCardDetails, cardDetails, false, checkInDto,
-				passengerSummaries);
-
-		// Verify that the paymentService.calculateAmountCollected() method was called
-		// once
+		
+		List<MetroCardDetails> result = balanceService.checkBalance(metroCardDetails, cardDetails, false, checkInDto, passengerSummaries);
+		
+		// Verify that the paymentService methods are called once
 		verify(paymentService, times(1)).calculateAmountCollected(anyLong(), anyLong(), anyBoolean());
-
-		// Verify that the paymentService.calculateReturnCollected() method was called
-		// once
 		verify(paymentService, times(1)).calculateReturnCollected(anyLong(), anyBoolean());
-
+		
+		// Assert that the list contains one element after processing
 		Assertions.assertEquals(1, result.size());
 	}
-
 }
