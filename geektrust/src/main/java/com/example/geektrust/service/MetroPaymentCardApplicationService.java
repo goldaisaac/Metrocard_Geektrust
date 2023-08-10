@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 import com.example.geektrust.constants.Category;
 import com.example.geektrust.constants.Destination;
 import com.example.geektrust.constants.InputCommands;
-import com.example.geektrust.dto.MetroCardDetails;
 import com.example.geektrust.response.PassengerSummary;
 
 import lombok.extern.slf4j.Slf4j;
@@ -31,18 +30,11 @@ public class MetroPaymentCardApplicationService implements CommandLineRunner {
 
     @Autowired
     SummaryService summaryService;
-
+    
     // Lists to hold MetroCard details and passenger summaries
-    private final List<MetroCardDetails> metroCardDetails;
-    private final List<PassengerSummary> passengerSummaries;
-
-    // Constructor to inject the lists of MetroCardDetails and PassengerSummary
     @Autowired
-    public MetroPaymentCardApplicationService(List<MetroCardDetails> metroCardDetails, List<PassengerSummary> passengerSummaries) {
-        this.metroCardDetails = metroCardDetails;
-        this.passengerSummaries = passengerSummaries;
-    }
-
+    private List<PassengerSummary> passengerSummaries;
+    
     @Override
     public void run(String... args) throws Exception {
 
@@ -63,38 +55,42 @@ public class MetroPaymentCardApplicationService implements CommandLineRunner {
             String fileName = scanner.next();
             log.info("Processing File : {}", fileName);
 
-            try {
-                List<String> items = Files.readAllLines(Paths.get(fileName));
-                // Process each line of input data
-                items.stream()
-                        .map(line -> line.split(" "))
-                        .filter(words -> words.length > 0)
-                        .forEach(words -> {
-                            String firstWord = words[0];
-                            InputCommands command = InputCommands.valueOf(firstWord.toUpperCase());
-                            switch (command) {
-                                case BALANCE:
-                                    // Invoke the BalanceService to process the balance command
-                                    balanceService.processBalance(metroCardDetails, String.join(" ", words));
-                                    break;
-                                case CHECK_IN:
-                                    // Invoke the CheckInService to process the check-in command
-                                    checkInService.checkIn(metroCardDetails, passengerSummaries, String.join(" ", words));
-                                    break;
-                                case PRINT_SUMMARY:
-                                    // Invoke the SummaryService to process the print summary command
-                                    summaryService.processSummary(passengerSummaries, summary -> System.out.println(summary));
-                                    break;
-                                default:
-                                    // Throw an exception for unexpected command types
-                                    throw new IllegalArgumentException("Unexpected value: " + command);
-                            }
-                        });
-            } catch (IOException e) {
-                System.out.println("File not found / empty");
-            }
+            processInputFile(fileName);
         }
 
         log.info("MetroPaymentCardApplicationService - END");
     }
+
+	private void processInputFile(String fileName) {
+		try {
+		    List<String> items = Files.readAllLines(Paths.get(fileName));
+		    // Process each line of input data
+		    items.stream()
+		            .map(line -> line.split(" "))
+		            .filter(words -> words.length > 0)
+		            .forEach(words -> {
+		                String firstWord = words[0];
+		                InputCommands command = InputCommands.valueOf(firstWord.toUpperCase());
+		                switch (command) {
+		                    case BALANCE:
+		                        // Invoke the BalanceService to process the balance command
+		                        balanceService.processBalance(String.join(" ", words));
+		                        break;
+		                    case CHECK_IN:
+		                        // Invoke the CheckInService to process the check-in command
+		                        checkInService.checkIn(String.join(" ", words));
+		                        break;
+		                    case PRINT_SUMMARY:
+		                        // Invoke the SummaryService to process the print summary command
+		                        summaryService.processSummary(passengerSummaries, summary -> System.out.println(summary));
+		                        break;
+		                    default:
+		                        // Throw an exception for unexpected command types
+		                        throw new IllegalArgumentException("Unexpected value: " + command);
+		                }
+		            });
+		} catch (IOException e) {
+		    System.out.println("File not found / empty");
+		}
+	}
 }

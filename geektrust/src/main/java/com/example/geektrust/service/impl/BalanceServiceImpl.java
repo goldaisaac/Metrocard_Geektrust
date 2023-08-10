@@ -28,6 +28,12 @@ public class BalanceServiceImpl implements BalanceService {
 	@Autowired
 	PaymentService paymentService;
 
+	@Autowired
+	List<MetroCardDetails> metroCardDetails;
+	
+	@Autowired
+	List<PassengerSummary> passengerSummaries;
+
 	private Map<Category, Integer> centralCounters = new EnumMap<>(Category.class);
 	private Map<Category, Integer> airportCounters = new EnumMap<>(Category.class);
 
@@ -39,7 +45,7 @@ public class BalanceServiceImpl implements BalanceService {
 	 * @return The updated list of metro card details.
 	 */
 	@Override
-	public List<MetroCardDetails> processBalance(List<MetroCardDetails> metroCardDetails, String data) {
+	public List<MetroCardDetails> processBalance(String data) {
 		log.info("Processing balance with data: {}", data);
 		String[] words = data.split(" ");
 		MetroCardDetails cardDetails = new MetroCardDetails();
@@ -67,8 +73,8 @@ public class BalanceServiceImpl implements BalanceService {
 	 * @return The updated list of metro card details.
 	 */
 	@Override
-	public List<MetroCardDetails> checkBalance(List<MetroCardDetails> metroCardDetails, MetroCardDetails cardDetails,
-			boolean isReturn, CheckInDto currentCheckInData, List<PassengerSummary> passengerSummaries) {
+	public List<MetroCardDetails> checkBalance(MetroCardDetails cardDetails, boolean isReturn,
+			CheckInDto currentCheckInData) {
 
 		long balance = cardDetails.getBalance().getBalance();
 		Category category = currentCheckInData.getCategory();
@@ -78,7 +84,7 @@ public class BalanceServiceImpl implements BalanceService {
 		long fare = calculateFare(category, isReturn);
 
 		// Update the passenger balance based on the calculated fare
-		balance = updatePassengerSummary(passengerSummaries, category, fare, isReturn, balance, currentCheckInData);
+		balance = updatePassengerSummary(category, fare, isReturn, balance, currentCheckInData);
 		log.info("Updated balance for {} category: {}", category, balance);
 
 		// Update the balance for the metro card with the calculated balance
@@ -139,7 +145,7 @@ public class BalanceServiceImpl implements BalanceService {
 	 * @param currentCheckInData The check-in data.
 	 * @return The updated balance amount.
 	 */
-	private long updatePassengerSummary(List<PassengerSummary> passengerSummaries, Category category, long fare,
+	private long updatePassengerSummary(Category category, long fare,
 			boolean isReturn, long balance, CheckInDto currentCheckInData) {
 		long amountCollected = paymentService.calculateAmountCollected(balance, fare, isReturn);
 		log.info("Amount collected: {}", amountCollected);
@@ -150,12 +156,12 @@ public class BalanceServiceImpl implements BalanceService {
 		balance = paymentService.updateBalance(balance, amountCollected);
 		log.info("Updated balance: {}", balance);
 
-		updatePassengerSummaries(passengerSummaries, category, amountCollected, returnCollected, currentCheckInData);
+		updatePassengerSummaries(category, amountCollected, returnCollected, currentCheckInData);
 
 		return balance;
 	}
 
-	private void updatePassengerSummaries(List<PassengerSummary> passengerSummaries, Category category,
+	private void updatePassengerSummaries(Category category,
 			long amountCollected, long returnCollected, CheckInDto currentCheckInData) {
 		Destination currentDestination = currentCheckInData.getDestination();
 		int counter = 0;

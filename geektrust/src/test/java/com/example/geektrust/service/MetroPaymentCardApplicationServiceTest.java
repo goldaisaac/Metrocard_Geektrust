@@ -1,7 +1,5 @@
 package com.example.geektrust.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -11,6 +9,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.example.geektrust.constants.Category;
 import com.example.geektrust.constants.Destination;
@@ -38,10 +38,8 @@ public class MetroPaymentCardApplicationServiceTest {
 
     @Mock
     private SummaryService mockSummaryService;
-
-    private List<MetroCardDetails> mockMetroCardDetails;
     
-    private List<PassengerSummary> mockPassengerSummaries;
+    private List<PassengerSummary> passengerSummaries;
 
     @BeforeEach
     public void setUp() {
@@ -49,9 +47,17 @@ public class MetroPaymentCardApplicationServiceTest {
         MetroCardDetails metroCardDetails = new MetroCardDetails();
         metroCardDetails.setMetroCardId("12345");
         metroCardDetails.setBalance(new BalanceDto(100L));
-        mockMetroCardDetails = Collections.singletonList(metroCardDetails);
-        mockPassengerSummaries = new ArrayList<>();
-        metroPaymentCardApplicationService = new MetroPaymentCardApplicationService(mockMetroCardDetails, mockPassengerSummaries);
+        Collections.singletonList(metroCardDetails);
+        metroPaymentCardApplicationService = new MetroPaymentCardApplicationService();
+        passengerSummaries = new ArrayList<>();
+        passengerSummaries = new ArrayList<>();
+        for (Destination destination : Destination.values()) {
+            PassengerSummary passengerSummary = new PassengerSummary();
+            passengerSummary.setDestination(destination);
+            passengerSummary.setPassengerCount(new EnumMap<>(Category.class));
+            passengerSummaries.add(passengerSummary);
+        }
+        ReflectionTestUtils.setField(metroPaymentCardApplicationService, "passengerSummaries", passengerSummaries);
     }
 
     @Test
@@ -67,8 +73,8 @@ public class MetroPaymentCardApplicationServiceTest {
             // Do nothing
         }
 
-        verify(mockCheckInService, never()).checkIn(any(), any(), any());
-        verify(mockBalanceService, never()).processBalance(any(), any());
+        verify(mockCheckInService, never()).checkIn(any());
+        verify(mockBalanceService, never()).processBalance(any());
         verify(mockSummaryService, never()).processSummary(any(), any());
 
         // Reset System.in
@@ -88,8 +94,8 @@ public class MetroPaymentCardApplicationServiceTest {
             // Do nothing
         }
 
-        verify(mockCheckInService, never()).checkIn(any(), any(), any());
-        verify(mockBalanceService, never()).processBalance(any(), any());
+        verify(mockCheckInService, never()).checkIn(any());
+        verify(mockBalanceService, never()).processBalance(any());
         verify(mockSummaryService, never()).processSummary(any(), any());
 
         // Reset System.in
@@ -109,8 +115,8 @@ public class MetroPaymentCardApplicationServiceTest {
             // Do nothing
         }
 
-        verify(mockCheckInService, never()).checkIn(any(), any(), any());
-        verify(mockBalanceService, never()).processBalance(any(), any());
+        verify(mockCheckInService, never()).checkIn(any());
+        verify(mockBalanceService, never()).processBalance(any());
         verify(mockSummaryService, never()).processSummary(any(), any());
 
         // Reset System.in
@@ -130,12 +136,29 @@ public class MetroPaymentCardApplicationServiceTest {
             // Do nothing
         }
 
-        verify(mockCheckInService, never()).checkIn(any(), any(), any());
-        verify(mockBalanceService, never()).processBalance(any(), any());
+        verify(mockCheckInService, never()).checkIn(any());
+        verify(mockBalanceService, never()).processBalance(any());
         verify(mockSummaryService, never()).processSummary(any(), any());
 
         // Reset System.in
         System.setIn(sysInBackup);
+    }
+    
+    @Test
+    public void testRun_PrintSummaryCommand_CallsSummaryService() throws Exception {
+
+        ReflectionTestUtils.setField(metroPaymentCardApplicationService, "balanceService", mockBalanceService);
+        ReflectionTestUtils.setField(metroPaymentCardApplicationService, "summaryService", mockSummaryService);
+        ReflectionTestUtils.setField(metroPaymentCardApplicationService, "checkInService", mockCheckInService);
+        
+        // Arrange
+        String fileName = "src/test/resources/input1.txt";
+        List<String> inputData = new ArrayList<>();
+        inputData.add("PRINT_SUMMARY");
+
+        ReflectionTestUtils.invokeMethod(metroPaymentCardApplicationService, "processInputFile", fileName);
+        // Assert
+        verify(mockSummaryService).processSummary(eq(passengerSummaries), any());
     }
 
 

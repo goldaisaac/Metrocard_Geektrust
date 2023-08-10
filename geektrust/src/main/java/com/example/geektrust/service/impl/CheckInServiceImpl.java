@@ -38,6 +38,12 @@ public class CheckInServiceImpl implements CheckInService {
 	@Autowired
 	SummaryService summaryService;
 
+	@Autowired
+	List<PassengerSummary> passengerSummaries;
+	
+	@Autowired
+	List<MetroCardDetails> metroCardDetails;
+
 	Map<String, Map<String, String>> prevTravelType = new HashMap<>();
 
 	@Override
@@ -51,8 +57,7 @@ public class CheckInServiceImpl implements CheckInService {
 	 * @param data               The check-in data.
 	 * @return The updated list of MetroCard details.
 	 */
-	public List<MetroCardDetails> checkIn(List<MetroCardDetails> metroCardDetails,
-			List<PassengerSummary> passengerSummaries, String data) {
+	public List<MetroCardDetails> checkIn(String data) {
 
 		log.info("Performing check-in with data: {}", data);
 
@@ -109,10 +114,10 @@ public class CheckInServiceImpl implements CheckInService {
 		// Check if the card has only one check-in and is not empty
 		if (cardDetails.getCheckInDetails().size() == 1 && !cardDetails.getCheckInDetails().isEmpty()) {
 			// Process one-way trip
-			processOneWayTrip(metroCardDetails, metroCardId, currentDestination, cardDetails, currentCheckInData, passengerSummaries);
+			processOneWayTrip(metroCardId, currentDestination, cardDetails, currentCheckInData);
 		} else {
 			// Process return trip or repeated one-way trip
-			processReturnTrip(metroCardDetails, metroCardId, currentDestination, cardDetails, currentCheckInData, passengerSummaries);
+			processReturnTrip(metroCardId, currentDestination, cardDetails, currentCheckInData);
 		}
 	}
 
@@ -125,13 +130,13 @@ public class CheckInServiceImpl implements CheckInService {
 	 * @param currentCheckInData The check-in details for the current trip.
 	 * @param passengerSummaries The list of passenger summaries.
 	 */
-	private void processOneWayTrip(List<MetroCardDetails> metroCardDetails, String metroCardId, String currentDestination, MetroCardDetails cardDetails,
-			CheckInDto currentCheckInData, List<PassengerSummary> passengerSummaries) {
+	private void processOneWayTrip(String metroCardId, String currentDestination, MetroCardDetails cardDetails,
+			CheckInDto currentCheckInData) {
 		log.info("Performing balance check for one-way trip - cardId: {}", metroCardId);
 		prevTravelType.put(metroCardId, Collections.singletonMap(AppConstants.ONE_WAY, currentDestination));
 
 		// Perform the balance check for the one-way trip
-		balanceService.checkBalance(metroCardDetails, cardDetails, false, currentCheckInData, passengerSummaries);
+		balanceService.checkBalance(cardDetails, false, currentCheckInData);
 	}
 
 	/**
@@ -143,8 +148,8 @@ public class CheckInServiceImpl implements CheckInService {
 	 * @param currentCheckInData The check-in details for the current trip.
 	 * @param passengerSummaries The list of passenger summaries.
 	 */
-	private void processReturnTrip(List<MetroCardDetails> metroCardDetails, String metroCardId, String currentDestination, MetroCardDetails cardDetails,
-			CheckInDto currentCheckInData, List<PassengerSummary> passengerSummaries) {
+	private void processReturnTrip(String metroCardId, String currentDestination, MetroCardDetails cardDetails,
+			CheckInDto currentCheckInData) {
 		Map<String, String> map = prevTravelType.get(metroCardId);
 		String previousDestination = map.getOrDefault(AppConstants.ONE_WAY, "");
 		log.info("Previous destination for MetroCardDetails with cardId: {} is: {}", metroCardId, previousDestination);
@@ -157,11 +162,12 @@ public class CheckInServiceImpl implements CheckInService {
 			prevTravelType.put(metroCardId, Collections.singletonMap(AppConstants.RETURN, currentDestination));
 
 			// Perform the balance check for the return trip
-			balanceService.checkBalance(metroCardDetails, cardDetails, true, currentCheckInData, passengerSummaries);
+			balanceService.checkBalance(cardDetails, true, currentCheckInData);
 		} else {
-			// If the current destination is the same as the previous destination or a return trip was already recorded,
+			// If the current destination is the same as the previous destination or a
+			// return trip was already recorded,
 			// process the balance check as a one-way trip
-			processOneWayTrip(metroCardDetails, metroCardId, currentDestination, cardDetails, currentCheckInData, passengerSummaries);
+			processOneWayTrip(metroCardId, currentDestination, cardDetails, currentCheckInData);
 		}
 	}
 

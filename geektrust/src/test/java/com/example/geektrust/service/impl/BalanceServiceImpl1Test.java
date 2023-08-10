@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.example.geektrust.constants.AppConstants;
 import com.example.geektrust.constants.Category;
@@ -35,6 +36,7 @@ public class BalanceServiceImpl1Test {
     private PaymentService mockPaymentService;
 
     private List<MetroCardDetails> metroCardDetails;
+    
     private List<PassengerSummary> passengerSummaries;
 
     @BeforeEach
@@ -42,12 +44,14 @@ public class BalanceServiceImpl1Test {
         MockitoAnnotations.openMocks(this);
         metroCardDetails = new ArrayList<>();
         passengerSummaries = new ArrayList<>();
+        ReflectionTestUtils.setField(balanceService, "passengerSummaries", passengerSummaries);
+        ReflectionTestUtils.setField(balanceService, "metroCardDetails", metroCardDetails);
     }
 
     @Test
     public void testProcessBalance_withValidData() {
         String data = "BALANCE cardId 100";
-        metroCardDetails = balanceService.processBalance(metroCardDetails, data);
+        metroCardDetails = balanceService.processBalance(data);
         
         assertFalse(metroCardDetails.isEmpty());
         assertEquals(1, metroCardDetails.size());
@@ -59,7 +63,7 @@ public class BalanceServiceImpl1Test {
     @Test
     public void testProcessBalance_withInvalidData() {
         String data = "INVALID_FORMAT";
-        metroCardDetails = balanceService.processBalance(metroCardDetails, data);
+        metroCardDetails = balanceService.processBalance(data);
         
         assertTrue(metroCardDetails.isEmpty());
     }
@@ -87,7 +91,6 @@ public class BalanceServiceImpl1Test {
         passengerSummary.setDestination(Destination.AIRPORT);
         metroCardDetails.add(cardDetails);
 
-        long fare = 10L;
         long amountCollected = 5L;
         long returnCollected = 2L;
         long updatedBalance = 93L;
@@ -104,14 +107,14 @@ public class BalanceServiceImpl1Test {
         Method calculateReturnCollectedMethod = PaymentService.class.getDeclaredMethod("calculateReturnCollected", long.class, boolean.class);
         calculateReturnCollectedMethod.setAccessible(true);
         when(mockPaymentService.calculateReturnCollected(eq(calculatedFare), eq(isReturn))).thenReturn(returnCollected);
-        long calculatedReturnCollected = (long) calculateReturnCollectedMethod.invoke(mockPaymentService, calculatedFare, isReturn);
+        calculateReturnCollectedMethod.invoke(mockPaymentService, calculatedFare, isReturn);
 
         Method updateBalanceMethod = PaymentService.class.getDeclaredMethod("updateBalance", long.class, long.class);
         updateBalanceMethod.setAccessible(true);
         when(mockPaymentService.updateBalance(eq(balance), eq(calculatedAmountCollected))).thenReturn(updatedBalance);
-        long calculatedUpdatedBalance = (long) updateBalanceMethod.invoke(mockPaymentService, balance, calculatedAmountCollected);
+        updateBalanceMethod.invoke(mockPaymentService, balance, calculatedAmountCollected);
 
-        metroCardDetails = balanceService.checkBalance(metroCardDetails, cardDetails, isReturn, currentCheckInData, passengerSummaries);
+        metroCardDetails = balanceService.checkBalance(cardDetails, isReturn, currentCheckInData);
 
         assertFalse(metroCardDetails.isEmpty());
         assertEquals(updatedBalance, metroCardDetails.get(0).getBalance().getBalance());
@@ -165,12 +168,13 @@ public class BalanceServiceImpl1Test {
     
     @Test
     public void testUpdatePassengerSummaries() throws Exception {
-        List<PassengerSummary> passengerSummaries = new ArrayList<>();
-
         PassengerSummary airportPassengerSummary = new PassengerSummary();
         airportPassengerSummary.setDestination(Destination.AIRPORT);
         airportPassengerSummary.setPassengerCount(new EnumMap<>(Category.class));
         passengerSummaries.add(airportPassengerSummary);
+
+        ReflectionTestUtils.setField(balanceService, "passengerSummaries", passengerSummaries);
+        ReflectionTestUtils.setField(balanceService, "metroCardDetails", metroCardDetails);
 
         PassengerSummary centralPassengerSummary = new PassengerSummary();
         centralPassengerSummary.setDestination(Destination.CENTRAL);
@@ -181,27 +185,24 @@ public class BalanceServiceImpl1Test {
         CheckInDto checkInData2 = new CheckInDto(Category.KID, Destination.AIRPORT);
         CheckInDto checkInData3 = new CheckInDto(Category.ADULT, Destination.CENTRAL);
 
-        Method updatePassengerSummariesMethod = BalanceServiceImpl.class.getDeclaredMethod("updatePassengerSummaries", List.class, Category.class, long.class, long.class, CheckInDto.class);
-        updatePassengerSummariesMethod.setAccessible(true);
-
         int initialPassengerCount = 0;
 
         // Update passenger summaries for an adult category, airport destination, and non-return trip
-        updatePassengerSummariesMethod.invoke(balanceService, passengerSummaries, Category.ADULT, 100, 0, checkInData1);
+        ReflectionTestUtils.invokeMethod(balanceService, "updatePassengerSummaries", Category.ADULT, 100l, 0l, checkInData1);
 
         assertEquals(1, passengerSummaries.get(0).getPassengerCount().get(Category.ADULT).intValue());
         assertEquals(100, passengerSummaries.get(0).getTotalAmountCollected());
         assertEquals(initialPassengerCount, passengerSummaries.get(0).getReturnAmountCollected());
 
         // Update passenger summaries for a kid category, airport destination, and return trip
-        updatePassengerSummariesMethod.invoke(balanceService, passengerSummaries, Category.KID, 50, 30, checkInData2);
+        ReflectionTestUtils.invokeMethod(balanceService, "updatePassengerSummaries", Category.KID, 50l, 30l, checkInData2);
 
         assertEquals(1, passengerSummaries.get(0).getPassengerCount().get(Category.KID).intValue());
         assertEquals(150, passengerSummaries.get(0).getTotalAmountCollected());
         assertEquals(30, passengerSummaries.get(0).getReturnAmountCollected());
 
         // Update passenger summaries for an adult category, central destination, and non-return trip
-        updatePassengerSummariesMethod.invoke(balanceService, passengerSummaries, Category.ADULT, 120, 0, checkInData3);
+        ReflectionTestUtils.invokeMethod(balanceService, "updatePassengerSummaries", Category.ADULT, 120l, 0l, checkInData3);
 
         assertEquals(1, passengerSummaries.get(1).getPassengerCount().get(Category.ADULT).intValue());
         assertEquals(120, passengerSummaries.get(1).getTotalAmountCollected());

@@ -3,7 +3,6 @@ package com.example.geektrust.service;
 import java.util.List;
 
 import com.example.geektrust.dto.MetroCardDetails;
-import com.example.geektrust.response.PassengerSummary;
 
 /**
  * The CheckInService interface provides methods to perform check-in operations for MetroCardDetails and update passenger summaries.
@@ -20,6 +19,6 @@ public interface CheckInService {
      * @param data               The check-in data containing instructions for the check-in operation.
      * @return The updated list of MetroCard details after performing the check-in operations.
      */
-    List<MetroCardDetails> checkIn(List<MetroCardDetails> metroCardDetails, List<PassengerSummary> passengerSummaries, String data);
+    List<MetroCardDetails> checkIn(String data);
 
 }
